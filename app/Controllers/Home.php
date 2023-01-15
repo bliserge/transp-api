@@ -19,7 +19,6 @@ class Home extends BaseController
 
     public function __construct()
     {
-        helper('cfms');
         $this->redis = new Redis();
         try {
             if ($this->redis->connect("127.0.0.1")) {
