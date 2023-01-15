@@ -181,7 +181,7 @@ class Home extends BaseController
 
     public function getCasesAdmin($withAtt = 0)
     {
-        $this->_secure();
+        $this->appendHeader();
         $csMdl = new CasesModel();
 
         $resultBuilder = $csMdl->select("cases.names,cases.id, cases.phone, DATE(cases.created_at) as date, cases.id_number,cases.categoryId,cases.problem, COALESCE(attorney, ' - ') as attorneyId, COALESCE(u.names, ' - ') as attorney, COALESCE(u.phone, ' - ') as attorneyPhone,if(status = 0, 'Pending', 'Completed') as status, c.title as category")
@@ -203,7 +203,7 @@ class Home extends BaseController
 
     public function takeCase() 
     {
-        $this->_secure();
+        $this->appendHeader();
         $input = json_decode(file_get_contents("php://input"));
         $mdl = new CasesModel();
         try {
@@ -219,7 +219,7 @@ class Home extends BaseController
 
     public function closeCase()
     {
-        $this->_secure();
+        $this->appendHeader();
         $input = json_decode(file_get_contents("php://input"));
         $mdl = new CasesModel();
         try {
@@ -263,7 +263,7 @@ class Home extends BaseController
         $input = json_decode(file_get_contents("php://input"));
         
         if(empty($input)) {
-            return $this->response->setStatusCode(500)->setJSON(["message" => "You need to enter your d number first"]);
+            return $this->response->setStatusCode(500)->setJSON(["message" => "You need to enter your ID number first"]);
         }
 
         $result = $mdl->select("cases.names, cases.phone, DATE(cases.created_at) as date, cases.id_number,cases.categoryId,cases.problem, COALESCE(attorney, ' - ') as attorneyId, COALESCE(u.names, ' - ') as attorney, COALESCE(u.phone, ' - ') as attorneyPhone,if(status = 0, 'Pending', 'Completed') as status, c.title as category")
@@ -271,5 +271,54 @@ class Home extends BaseController
                     ->join("categories c", "c.id = cases.categoryId")
                     ->where("id_number", $input->ownerId)->get()->getResultArray();
         return $this->response->setJSON($result);
+    }
+
+    public function getCasesByCategory($year = null) 
+    {
+        $this->appendHeader();
+        $mdl = new CasesModel();
+        $yearInUse = $year == null ? date("Y") : $year;
+        $result = $mdl->select("c.title,COUNT(cases.id) as num")
+                    ->join("categories c", "c.id = cases.categoryId")
+                    ->where("YEAR(created_at)", $yearInUse)
+                    ->groupBy("cases.categoryId")
+                    ->get()
+                    ->getResultArray();
+        if(!empty($result)) {
+            return $this->response->setJSON($result);
+        } else {
+            return $this->response->setStatusCode(500)->setJSON(["message" => "No data found"]);
+        }
+    }
+
+    public function getUsers() 
+    {
+        $this->appendHeader();
+        $mdl = new UsersModel();
+        $result = $mdl->select("names, userType,phone")
+                        ->where("userType !=", 1)
+                        ->get()
+                        ->getResultArray();
+
+        return $this->response->setJSON($result);
+    }
+
+    public function registerUser()
+    {
+        $this->appendHeader();
+        $mdl = new UsersModel();
+        $input = json_decode(file_get_contents("php://input"));
+        try {
+            $mdl->save([
+                "names" => $input->names,
+                "phone" => $input->phone,
+                "password" => password_hash($input->password, PASSWORD_DEFAULT),
+                "userType" => $input->userType
+            ]);
+            return $this->response->setJSON(["message" => "User saved"]);
+        }
+        catch(\Exception $e) {
+            return $this->response->setStatusCode(500)->setJSON(["message" => $e->getMessage()]);
+        }
     }
 }
